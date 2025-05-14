@@ -155,7 +155,6 @@ class FTP{
                             data_prev->next = de_data->next;
                             free(de_data);
                             de_flag = false;
-                            cout << "serve close fd : " << evlist[i].data.fd << endl;
                             break;
                         }
                         data_prev = de_data;
@@ -163,7 +162,6 @@ class FTP{
                         free(data_prev);
                         data_args_list = de_data;
                         de_flag = false;
-                        cout << "serve close fd : " << evlist[i].data.fd << endl;
                         break;
                     }
                     data_prev = de_data;
@@ -174,14 +172,12 @@ class FTP{
                         if(ctrl_prev){
                             ctrl_prev->next = de_ctrl->next;
                             free(de_ctrl);
-                            cout << "serve close fd : " << evlist[i].data.fd << endl;
                             break;
                         }
                         ctrl_prev = de_ctrl;
                         de_ctrl = de_ctrl->next;
                         free(ctrl_prev);
                         ctrl_args_list = de_ctrl;
-                        cout << "serve close fd : " << evlist[i].data.fd << endl;
                         break;
                     }
                     ctrl_prev = de_ctrl;
