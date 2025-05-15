@@ -303,6 +303,7 @@ class FTP{
                 chag_args = chag_args->next;
             }
 
+            epoll_ctl(epfd, EPOLL_CTL_DEL, listen_fd, nullptr);
             close(listen_fd);
 
         }else{
