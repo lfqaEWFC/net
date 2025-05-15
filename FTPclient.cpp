@@ -14,6 +14,7 @@ using namespace std;
 int main(){
 
     int ctrl_cfd,data_cfd;
+    char client_num[10];
     char* outputcmd;
     char* inputbuf = new char[MAXBUF];
     int recvlen = 0;
@@ -27,8 +28,11 @@ int main(){
         perror("inetconnect");
         return 0;
     }
+    recv(ctrl_cfd,inputbuf,MAXBUF,0);
+    strcpy(client_num,inputbuf);
+    memset(inputbuf,0,MAXBUF);
 
-    send(ctrl_cfd,"PASV",strlen("PASV")+3,0);
+    send(ctrl_cfd,"PASV",strlen("PASV")+1,0);
     cout << "PASV" << endl;
     recvlen = recv(ctrl_cfd,inputbuf,MAXBUF,0);
     if(recvlen == 0){
@@ -58,11 +62,24 @@ int main(){
        perror("inetconnect");
        return 0;
     }
+    send(data_cfd,client_num,strlen(client_num)+1,0);
+
     while(1){
+
         if(checkflag){
+
             cout << "please scan the password" << endl;
             cin >> outputcmd;
             send(ctrl_cfd,outputcmd,strlen(outputcmd)+1,0); 
+
+            recv(ctrl_cfd,inputbuf,MAXBUF,0);
+            if(strcmp("pair error",inputbuf) == 0){
+                cout << inputbuf << endl;
+                continue;
+            }
+            send(ctrl_cfd,"run",strlen("run")+1,0);
+            memset(inputbuf,0,MAXBUF);
+
             recv(ctrl_cfd,inputbuf,MAXBUF,0);
             if(strcmp("230 Login successful.\r",inputbuf) == 0)
                 checkflag = false;
@@ -79,6 +96,22 @@ int main(){
             if(send(ctrl_cfd,outputcmd,strlen(outputcmd),0) == 0){
                 cout << "empty command" << endl;
                 continue;
+            }
+
+            if(strcmp("QUIT",outputcmd) == 0){
+                recv(ctrl_cfd,inputbuf,MAXBUF,0);
+                cout << inputbuf << endl;
+                break;
+            }
+
+            if(strcmp(outputcmd,"PASV") != 0){
+                recv(ctrl_cfd,inputbuf,MAXBUF,0);
+                if(strcmp("pair error",inputbuf) == 0){
+                    cout << "Please establish a data connection first" << endl;
+                    continue;
+                }
+                send(ctrl_cfd,"run",strlen("run")+1,0);
+                memset(inputbuf,0,MAXBUF);
             }
 
             if(strstr(outputcmd,"LIST") != NULL){
@@ -142,10 +175,42 @@ int main(){
                     memset(outputcmd,0,sizeof(outputcmd));
                     memset(inputbuf,0,sizeof(inputbuf));
                     memset(serve_end,0,sizeof(serve_end));
-
+                    close(data_cfd);
+                    
                     continue;
                 }
 
+            }
+            else if(strcmp("PASV",outputcmd) == 0){
+                recvlen = recv(ctrl_cfd,inputbuf,MAXBUF,0);
+                if(recvlen == 0){
+                    perror("recv");
+                    return 0;
+                }
+                cout << inputbuf << endl;
+                char delimiter[4]="(),";
+                int cnt = 0;
+                char **in_token = new char*[10];
+                for(int i=0;i<10;i++){
+                    in_token[i] = new char[64];
+                }
+                char *token = strtok(inputbuf,delimiter);
+                while(token != NULL){
+                    in_token[cnt] = token;
+                    cnt++; 
+                    token = strtok(NULL,delimiter);
+                }
+                char *data_ip = new char[MAXBUF];
+                sprintf(data_ip,"%s.%s.%s.%s",in_token[1],in_token[2],in_token[3],in_token[4]);
+                char *data_port = new char[MAXBUF];
+                sprintf(data_port,("%d"),atoi(in_token[5])*256+atoi(in_token[6]));
+            
+                data_cfd = inetconnect(data_ip,data_port);
+                if(data_cfd == -1){
+                   perror("inetconnect");
+                   return 0;
+                }
+                send(data_cfd,client_num,strlen(client_num)+1,0);
             }
             else if(strstr(outputcmd,"STOR") != NULL){
                 int cnt = 0;
@@ -199,12 +264,10 @@ int main(){
 
                 recv(ctrl_cfd,inputbuf,MAXBUF,0);
                 cout << inputbuf << endl;
+                close(data_cfd);
+
+                continue;
                 
-            }
-            else if(strcmp("QUIT",outputcmd) == 0){
-                recv(ctrl_cfd,inputbuf,MAXBUF,0);
-                cout << inputbuf << endl;
-                break;
             }
             else{
                 recv(ctrl_cfd,inputbuf,MAXBUF,0);
