@@ -73,14 +73,6 @@ int main(){
             send(ctrl_cfd,outputcmd,strlen(outputcmd)+1,0); 
 
             recv(ctrl_cfd,inputbuf,MAXBUF,0);
-            if(strcmp("pair error",inputbuf) == 0){
-                cout << inputbuf << endl;
-                continue;
-            }
-            send(ctrl_cfd,"run",strlen("run")+1,0);
-            memset(inputbuf,0,MAXBUF);
-
-            recv(ctrl_cfd,inputbuf,MAXBUF,0);
             if(strcmp("230 Login successful.\r",inputbuf) == 0)
                 checkflag = false;
             cout << inputbuf << endl;
@@ -104,19 +96,15 @@ int main(){
                 break;
             }
 
-            if(strcmp(outputcmd,"PASV") != 0){
-                recv(ctrl_cfd,inputbuf,MAXBUF,0);
-                if(strcmp("pair error",inputbuf) == 0){
-                    cout << "Please establish a data connection first" << endl;
-                    continue;
-                }
-                send(ctrl_cfd,"run",strlen("run")+1,0);
-                memset(inputbuf,0,MAXBUF);
-            }
-
             if(strstr(outputcmd,"LIST") != NULL){
 
-                recv(data_cfd,inputbuf,MAXBUF,0);
+                recv(ctrl_cfd,inputbuf,MAXBUF,0);
+                if(strcmp("pair error",inputbuf) == 0){
+                    cout << "Please establish a data connection first." << endl;
+                    memset(outputcmd,0,sizeof(outputcmd));
+                    memset(inputbuf,0,sizeof(inputbuf));
+                    continue;
+                }
                 cout << inputbuf << endl;
                 memset(outputcmd,0,sizeof(outputcmd));
                 memset(inputbuf,0,sizeof(inputbuf));
@@ -124,7 +112,14 @@ int main(){
             else if(strstr(outputcmd,"RETR") != NULL){
 
                 recv(ctrl_cfd,inputbuf,MAXBUF,0);
+                if(strcmp("pair error",inputbuf) == 0){
+                    cout << "Please establish a data connection first." << endl;
+                    memset(outputcmd,0,sizeof(outputcmd));
+                    memset(inputbuf,0,sizeof(inputbuf));
+                    continue;
+                }
                 cout << inputbuf << endl;
+                memset(inputbuf,0,MAXBUF);
 
                 if(strstr(inputbuf,"wrong command") != NULL)
                     continue;
@@ -182,12 +177,14 @@ int main(){
 
             }
             else if(strcmp("PASV",outputcmd) == 0){
+
                 recvlen = recv(ctrl_cfd,inputbuf,MAXBUF,0);
                 if(recvlen == 0){
                     perror("recv");
-                    return 0;
+                    continue;
                 }
                 cout << inputbuf << endl;
+
                 char delimiter[4]="(),";
                 int cnt = 0;
                 char **in_token = new char*[10];
@@ -228,6 +225,12 @@ int main(){
                 if(strstr(inputbuf,"550") != NULL){
                     cout << inputbuf << endl;
                     memset(inputbuf,0,MAXBUF);
+                    continue;
+                }
+                if(strcmp("pair error",inputbuf) == 0){
+                    cout << "Please establish a data connection first." << endl;
+                    memset(inputbuf,0,sizeof(inputbuf));
+                    memset(outputcmd,0,sizeof(outputcmd));
                     continue;
                 }
                 cout << inputbuf << endl;
@@ -271,6 +274,12 @@ int main(){
             }
             else{
                 recv(ctrl_cfd,inputbuf,MAXBUF,0);
+                if(strcmp("pair error",inputbuf) == 0){
+                    cout << "Please establish a data connection first." << endl;
+                    memset(inputbuf,0,sizeof(inputbuf));
+                    memset(outputcmd,0,sizeof(outputcmd));
+                    continue;
+                }
                 cout << inputbuf << endl;
                 memset(outputcmd,0,sizeof(outputcmd));
                 memset(inputbuf,0,sizeof(inputbuf));
