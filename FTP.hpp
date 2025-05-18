@@ -35,9 +35,9 @@ typedef struct ctrl_args{
     bool checkflag = true;
     pool *data_pool;
     char clientnum[10];
+    data_args *data_pair;
     ctrl_args *next = nullptr;
     data_args *data_args_list = nullptr;
-    ctrl_args *ctrl_args_list = nullptr;
 }ctrl_args;
 
 
@@ -153,7 +153,15 @@ class FTP{
                 ctrl_args *ctrl_prev = nullptr;
                 ctrl_args *de_ctrl = ctrl_args_list;
                 while(de_data != NULL){
+                    ctrl_args *de_pair = ctrl_args_list;
                     if(de_data->fd == evlist[i].data.fd){
+                        while(de_pair!=NULL){
+                            if(strcmp(de_pair->clientnum,de_data->clientnum) == 0){
+                                de_pair->data_pair = NULL;
+                                break;
+                            }
+                            de_pair = de_pair->next;
+                        }
                         if(data_prev){
                             data_prev->next = de_data->next;
                             free(de_data);
@@ -281,15 +289,35 @@ class FTP{
                 data_args_list->next = NULL;
                 recv(connect_fd,input,10,0);
                 cout << input << endl;
-                strcpy(data_args_list->clientnum,input);             
+                strcpy(data_args_list->clientnum,input);
+                ctrl_args *ctrl_pair = ctrl_args_list; 
+                while(ctrl_pair != nullptr){
+                    if(strcmp(ctrl_pair->clientnum,data_args_list->clientnum) == 0){
+                        ctrl_pair->data_pair = data_args_list;
+                        data_args_list->ctrl_pair_fd = ctrl_pair->fd;
+                        cout << "pair success" << endl;
+                        break;
+                    }
+                    ctrl_pair = ctrl_pair->next;
+                }          
             }else{
+                ctrl_args *ctrl_pair = ctrl_args_list;
                 data_args *data_add = new data_args;
                 data_args *data_tail;
                 data_add->fd = connect_fd;
                 data_add->next = NULL;
                 recv(connect_fd,input,10,0);
                 cout << input << endl;
-                strcpy(data_add->clientnum,input);                 
+                strcpy(data_add->clientnum,input);
+                while(ctrl_pair != nullptr){
+                    if(strcmp(ctrl_pair->clientnum,data_add->clientnum) == 0){
+                        ctrl_pair->data_pair = data_add;
+                        data_add->ctrl_pair_fd = ctrl_pair->fd;
+                        cout << "pair success : " << data_add->fd << "," << data_add->clientnum << endl;
+                        break;
+                    }
+                    ctrl_pair = ctrl_pair->next;
+                }                                    
                 data_tail = data_args_list;
                 while(data_tail->next != NULL){
                     data_tail = data_tail->next;
@@ -329,12 +357,6 @@ class FTP{
                     ctrl_tail = ctrl_tail->next;
                 }
                 ctrl_tail->next = ctrl_add;
-            }
-
-            ctrl_args *chag_args = ctrl_args_list;
-            while(chag_args != NULL){
-                chag_args->ctrl_args_list = ctrl_args_list;
-                chag_args = chag_args->next;
             }
 
         }
@@ -414,6 +436,7 @@ class FTP{
                 send(new_arg->fd,sendbuf,sizeof(sendbuf),0);
 
                 memset(sendbuf,0,sizeof(sendbuf));
+                memset(recvbuf,0,MAXBUF);
                 delete[] res_token;
                 free(result);
             }
@@ -425,22 +448,10 @@ class FTP{
                     return NULL;
                 }
 
-                data_args *data_pair = new_arg->data_args_list;
-                while(data_pair != NULL){
-                    if(strcmp(data_pair->clientnum,new_arg->clientnum) == 0){
-                        data_pair->ctrl_pair_fd = new_arg->fd;
-                        break;
-                    }
-                    data_pair = data_pair->next;
-                }
-                if(data_pair == NULL){
+                if(new_arg->data_pair == NULL){
                     send(new_arg->fd,"pair error",strlen("pair error")+1,0);
+                    cout << "pair error" << endl;
                     return NULL;
-                }
-                else{
-                    char pairchk[10];
-                    send(new_arg->fd,"pair succeed",strlen("pair succeed")+1,0);
-                    recv(new_arg->fd,pairchk,10,0);
                 }
 
                 if(new_arg->checkflag){
@@ -480,7 +491,7 @@ class FTP{
                             cnt++;
                         }
                         if(cnt > 2){
-                            send(data_pair->fd,"wrong dictory",strlen("wrong dictory"),0);
+                            send(new_arg->fd,"wrong dictory",strlen("wrong dictory"),0);
                             return NULL;
                         }
                         strcpy(dirpath,recv_token[1]);
@@ -489,7 +500,7 @@ class FTP{
                     dirp = opendir(dirpath);
                     if(dirp == NULL){
                         perror("opendir");
-                        if(send(data_pair->fd,"wrong dictory",strlen("wrong dictory"),0) == -1)
+                        if(send(new_arg->fd,"wrong dictory",strlen("wrong dictory"),0) == -1)
                             perror("send");
                         return NULL;
                     }                    
@@ -502,14 +513,14 @@ class FTP{
                         sprintf(tmp_buf,"%s %s",dirmsg,file->d_name);
                         strncpy(dirmsg,tmp_buf,MAXBUF-1);
                     }
-                    if(send(data_pair->fd,dirmsg,strlen(dirmsg)+1,0) == -1)
+                    if(send(new_arg->fd,dirmsg,strlen(dirmsg)+1,0) == -1)
                         perror("send");
 
                     return NULL;
                 }
                 else if(strstr(recvbuf,"RETR") != NULL){
 
-                    data_pair->retr_flag = true;
+                    new_arg->data_pair->retr_flag = true;
                     int cnt = 0;
                     char recv_token[10][10];
                     char delim[3] = " \n";
@@ -524,28 +535,28 @@ class FTP{
                             perror("send");
                         return NULL;
                     }
-                    strcpy(data_pair->retr_filename,recv_token[1]);
+                    strcpy(new_arg->data_pair->retr_filename,recv_token[1]);
 
-                    if(open(data_pair->retr_filename,O_RDONLY,0644) == -1){
+                    if(open(new_arg->data_pair->retr_filename,O_RDONLY,0644) == -1){
                        if(send(new_arg->fd,"550 file not found or denied.",strlen("550 file not found or denied.")+1,0) == -1)
                             perror("send");
                        return NULL; 
                     }
                     else{
                         struct stat size_stat;
-                        stat(data_pair->retr_filename,&size_stat);
-                        sprintf(sendbuf,"%s %s (%lld %s)","150 Opening BINARY mode data connection for",data_pair->retr_filename,(long long)size_stat.st_size,"bytes");
+                        stat(new_arg->data_pair->retr_filename,&size_stat);
+                        sprintf(sendbuf,"%s %s (%lld %s)","150 Opening BINARY mode data connection for",new_arg->data_pair->retr_filename,(long long)size_stat.st_size,"bytes");
                         if(send(new_arg->fd,sendbuf,strlen(sendbuf)+1,0) == -1)
                             perror("send"); 
                     }
 
-                    new_arg->data_pool->addtask(data_fun,data_pair);
+                    new_arg->data_pool->addtask(data_fun,new_arg->data_pair);
 
                     memset(sendbuf,0,sizeof(sendbuf));
                     return NULL;
                 }
                 else if(strstr(recvbuf,"STOR") != NULL){
-                    data_pair->stor_flag = true;
+                    new_arg->data_pair->stor_flag = true;
                     int cnt = 0;
                     char recv_token[10][10];
                     char delim[4] = " \n/";
@@ -557,12 +568,12 @@ class FTP{
                         token = strtok(NULL,delim);
                         cnt++;
                     }
-                    strcpy(data_pair->stor_filename,recv_token[cnt-1]);
+                    strcpy(new_arg->data_pair->stor_filename,recv_token[cnt-1]);
 
-                    sprintf(creat_name,"%s%s","STOR_",data_pair->stor_filename);
+                    sprintf(creat_name,"%s%s","STOR_",new_arg->data_pair->stor_filename);
                     
-                    data_pair->stor_filefd = open(creat_name,O_CREAT|O_RDWR|O_TRUNC,0754);
-                    if(data_pair->stor_filefd == -1){
+                    new_arg->data_pair->stor_filefd = open(creat_name,O_CREAT|O_RDWR|O_TRUNC,0754);
+                    if(new_arg->data_pair->stor_filefd == -1){
                         if(send(new_arg->fd,"550 file not found or denied.",strlen("550 file not found or denied.")+1,0) == -1)
                             perror("send");
                         return NULL;
@@ -581,6 +592,7 @@ class FTP{
                     return NULL;
                 }
 
+                memset(recvbuf,0,MAXBUF);
             }
         }
         else if (n == -1) {
