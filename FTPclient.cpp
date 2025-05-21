@@ -119,7 +119,6 @@ int main(){
                     continue;
                 }
                 cout << inputbuf << endl;
-                memset(inputbuf,0,MAXBUF);
 
                 if(strstr(inputbuf,"wrong command") != NULL)
                     continue;
@@ -175,6 +174,8 @@ int main(){
                     continue;
                 }
 
+                memset(inputbuf,0,MAXBUF);
+
             }
             else if(strcmp("PASV",outputcmd) == 0){
 
@@ -222,11 +223,6 @@ int main(){
                 struct stat file_stat;
                 
                 recv(ctrl_cfd,inputbuf,MAXBUF,0);
-                if(strstr(inputbuf,"550") != NULL){
-                    cout << inputbuf << endl;
-                    memset(inputbuf,0,MAXBUF);
-                    continue;
-                }
                 if(strcmp("pair error",inputbuf) == 0){
                     cout << "Please establish a data connection first." << endl;
                     memset(inputbuf,0,sizeof(inputbuf));
